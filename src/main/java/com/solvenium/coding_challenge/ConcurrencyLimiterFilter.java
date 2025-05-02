@@ -28,7 +28,6 @@ class ConcurrencyLimiterFilter implements Filter { // intercept HTTP requests be
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
 
-        HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
         boolean permitAcquired = false;
