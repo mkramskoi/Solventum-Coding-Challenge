@@ -1,26 +1,31 @@
 package com.solvenium.coding_challenge;
 
 import jakarta.servlet.*;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-class ConcurrencyLimiterFilter implements Filter { // intercept HTTP requests before they reach any controllers
+class ConcurrencyLimiterFilter implements Filter {
 
     private final Semaphore semaphore;
     private final int maxConcurrentRequests;
     private final long timeoutMillis;
+    private final long artificialDelayMillis; // Added for testing
 
     public ConcurrencyLimiterFilter(
-            @Value("${app.concurrency.limit:10}") int maxConcurrentRequests,
-            @Value("${app.concurrency.timeout:100}") long timeoutMillis) {
+            int maxConcurrentRequests,
+            long timeoutMillis) {
+        this(maxConcurrentRequests, timeoutMillis, 0); // Default delay is 0
+    }
+
+    // Constructor with artificial delay for testing
+    public ConcurrencyLimiterFilter(int maxConcurrentRequests, long timeoutMillis, long artificialDelayMillis) {
         this.maxConcurrentRequests = maxConcurrentRequests;
         this.timeoutMillis = timeoutMillis;
+        this.artificialDelayMillis = artificialDelayMillis;
         this.semaphore = new Semaphore(maxConcurrentRequests, true);
     }
 
@@ -32,14 +37,15 @@ class ConcurrencyLimiterFilter implements Filter { // intercept HTTP requests be
 
         boolean permitAcquired = false;
         try {
-            // Try to acquire a permit with a timeout
             permitAcquired = semaphore.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
 
             if (permitAcquired) {
-                // Permit acquired, process the request
+                // Simulate processing delay for testing
+                if (artificialDelayMillis > 0) {
+                    Thread.sleep(artificialDelayMillis);
+                }
                 chain.doFilter(request, response);
             } else {
-                // Max concurrent requests reached
                 httpResponse.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
                 httpResponse.getWriter().write("Server is busy. Please try again later.");
             }
@@ -48,7 +54,6 @@ class ConcurrencyLimiterFilter implements Filter { // intercept HTTP requests be
             httpResponse.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
             httpResponse.getWriter().write("Request processing interrupted");
         } finally {
-            // Release the permit if it was acquired
             if (permitAcquired) {
                 semaphore.release();
             }
